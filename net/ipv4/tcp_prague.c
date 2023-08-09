@@ -281,12 +281,12 @@ static u32 prague_frac_cwnd_to_snd_cwnd(struct sock *sk)
 
 static u64 prague_virtual_rtt(struct sock *sk)
 {
-	return max_t(u64, prague_target_rtt(sk), USd82RTT(tcp_sk(sk)->srtt_us));
+	return max_t(u64, prague_target_rtt(sk), US2RTT(tcp_sk(sk)->srtt_us >> 3));
 }
 
 static u64 prague_window_rtt(struct sock *sk)
 {
-	return min_t(u64, prague_target_rtt(sk), USd82RTT(tcp_sk(sk)->srtt_us));
+	return min_t(u64, prague_target_rtt(sk), US2RTT(tcp_sk(sk)->srtt_us >> 3));
 }
 
 static u64 prague_pacing_rate_to_Bytes_in_flight(struct sock *sk)
