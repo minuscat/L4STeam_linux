@@ -288,8 +288,10 @@ static u64 prague_pacing_rate_to_Bytes_in_flight(struct sock *sk)
 	u128 Bytes_in_flight;
 
 	rtt_win = prague_window_rtt(sk);
-	Bytes_in_flight = ((u128)ca->rate_Bps * (u128)rtt_win + (1<<22)) >> 23;
-	return (Bytes_in_flight > UINT64_MAX) ? UINT64_MAX : (u64)Bytes_in_flight;
+	Bytes_in_flight = (ca->rate_Bps * rtt_win + (1<<22)) >> 23;
+	return Bytes_in_flight;
+	//Bytes_in_flight = ((u128)ca->rate_Bps * (u128)rtt_win + (1<<22)) >> 23;
+	//return (Bytes_in_flight > UINT64_MAX) ? UINT64_MAX : (u64)Bytes_in_flight;
 }
 
 /* Window-based AI ONLY is NOT used in RTT independence */
@@ -330,7 +332,8 @@ static void prague_update_pacing_rate(struct sock *sk)
 	if (prague_is_rtt_indep(sk)) {
 		max_inflight = prague_pacing_rate_to_Bytes_in_flight(sk);
 		mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1)>>1);
-		u64 new_cwnd = min_t(u64, max_t(u64, div_u64(max_inflight + mtu - 1, mtu), MIN_CWND), tp->snd_cwnd_clamp);
+		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
+		new_cwnd = min_t(u64, max_t(u64, new_cwnd, MIN_CWND), tp->snd_cwnd_clamp);
 
 		tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
 		ca->frac_cwnd = new_cwnd << CWND_UNIT;
@@ -484,8 +487,9 @@ static void prague_update_alpha(struct sock *sk)
 
 	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >>1;
 	if (ecn_segs) {
-		u128 decrease_u128 = ((u128)ca->rate_Bps*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
-		decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
+		//u128 decrease_u128 = ((u128)ca->rate_Bps*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+		//decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
+		decrease = (ca->rate_Bps*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
 	}
 	ca->rate_Bps = max_t(u64, ca->rate_Bps + increase - decrease, MINIMUM_RATE);
 
@@ -691,8 +695,8 @@ static u32 prague_cwnd_undo(struct sock *sk)
 	struct prague *ca = prague_ca(sk);
 
 	/* We may have made some progress since then, account for it. */
-	ca->rate_Bps = max(ca->rate_Bps, ca->loss_rate_Bps);
-	ca->frac_cwnd = max(ca->frac_cwnd, ca->loss_frac_cwnd);
+	ca->rate_Bps = max_t(u64, ca->rate_Bps, ca->loss_rate_Bps);
+	ca->frac_cwnd = max_t(u64, ca->frac_cwnd, ca->loss_frac_cwnd);
 	return max(ca->loss_cwnd, tcp_sk(sk)->snd_cwnd);
 }
 
