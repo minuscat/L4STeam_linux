@@ -326,36 +326,36 @@ static void prague_update_pacing_rate(struct sock *sk)
 	u64 mtu;
 
 	/* Record the largest MSS in sys_mss */
-	ca->sys_mss = max_t(u32, ca->sys_mss, tp->mss_cache);
+	//ca->sys_mss = max_t(u32, ca->sys_mss, tp->mss_cache);
 
 	/* Set max_inflight, MTU, and snd_cwnd  */
-	if (prague_is_rtt_indep(sk)) {
-		max_inflight = prague_pacing_rate_to_Bytes_in_flight(sk);
-		mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1)>>1);
-		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
-		new_cwnd = min_t(u64, max_t(u64, new_cwnd, MIN_CWND), tp->snd_cwnd_clamp);
+	//if (prague_is_rtt_indep(sk)) {
+	//	max_inflight = prague_pacing_rate_to_Bytes_in_flight(sk);
+	//	mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1)>>1);
+	//	u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
+	//	new_cwnd = min_t(u64, max_t(u64, new_cwnd, MIN_CWND), tp->snd_cwnd_clamp);
 
-		tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
-		ca->frac_cwnd = new_cwnd << CWND_UNIT;
-		if (new_cwnd != tp->snd_cwnd) {
-			tp->snd_cwnd = new_cwnd;
-			prague_cwnd_changed(sk);
-		}
-		rate = ca->rate_Bps;
-	} else {
+	//	tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+	//	ca->frac_cwnd = new_cwnd << CWND_UNIT;
+	//	if (new_cwnd != tp->snd_cwnd) {
+	//		tp->snd_cwnd = new_cwnd;
+	//		prague_cwnd_changed(sk);
+	//	}
+	//	rate = ca->rate_Bps;
+	//} else {
 		mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
 		max_inflight = ca->frac_cwnd;
 		rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
-	}
+	//}
 
 	if (tp->snd_cwnd < tp->snd_ssthresh / 2)
 		rate <<= 1;
-	if (!prague_is_rtt_indep(sk)) {
+	//if (!prague_is_rtt_indep(sk)) {
 		if (likely(tp->srtt_us))
 			rate = div64_u64(rate, tp->srtt_us);
 		rate = (rate*max_inflight + (ONE_CWND >> 1)) >> CWND_UNIT;
-		ca->rate_Bps = rate;
-	}
+	//	ca->rate_Bps = rate;
+	//}
 	rate = min_t(u64, rate, sk->sk_max_pacing_rate);
 	/* TODO(otilmans) rewrite the tso_segs hook to bytes to avoid this
 	 * division. It will somehow need to be able to take hdr sizes into
@@ -449,7 +449,7 @@ static void prague_update_alpha(struct sock *sk)
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	u64 ecn_segs, alpha;
-	u64 increase;
+	u64 increase = 0;
 	u64 decrease = 0;
 
 	/* Do not update alpha before we have proof that there's an AQM on
@@ -485,12 +485,12 @@ static void prague_update_alpha(struct sock *sk)
 	WRITE_ONCE(ca->upscaled_alpha, alpha);
 	tp->alpha = alpha >> PRAGUE_SHIFT_G;
 
-	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >>1;
-	if (ecn_segs) {
-		//u128 decrease_u128 = ((u128)ca->rate_Bps*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
-		//decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
-		decrease = (ca->rate_Bps*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
-	}
+	//increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >>1;
+	//if (ecn_segs) {
+	//	//u128 decrease_u128 = ((u128)ca->rate_Bps*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+	//	//decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
+	//	decrease = (ca->rate_Bps*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+	//}
 	ca->rate_Bps = max_t(u64, ca->rate_Bps + increase - decrease, MINIMUM_RATE);
 
 skip:
