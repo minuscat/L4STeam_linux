@@ -92,8 +92,8 @@
 #define MIN_CWND		2U
 #define PRAGUE_ALPHA_BITS	24U
 #define PRAGUE_MAX_ALPHA	(1ULL << PRAGUE_ALPHA_BITS)
-#define CWND_UNIT		20U
-#define ONE_CWND		(1ULL << CWND_UNIT) /* Must be signed */
+#defin64CWND_UNIT		20U
+#define ONE_CWND		(1ULL << CWND_UNIT)
 #define MINIMUM_RATE		12500		/* Minimum rate in Bytes per second */
 #define PRAGUE_SHIFT_G		4		/* EWMA gain g = 1/2^4 */
 #define DEFAULT_RTT_TRANSITION	500
@@ -191,7 +191,7 @@ struct prague {
 
 struct rtt_scaling_ops {
 	bool (*should_update_ewma)(struct sock *sk);
-	u64 (*ai_ack_increase)(struct sock *sk, u32 rtt);
+	u64 (*ai_ack_increase)(struct sock *sk, u64 rtt);
 	u64 (*target_rtt)(struct sock *sk);
 };
 static struct rtt_scaling_ops rtt_scaling_heuristics[__RTT_CONTROL_MAX];
@@ -329,11 +329,11 @@ static void prague_update_pacing_rate(struct sock *sk)
 	/* Set max_inflight, MTU, and snd_cwnd  */
 	if (prague_is_rtt_indep(sk)) {
 		max_inflight = prague_pacing_rate_to_Bytes_in_flight(sk);
-		mtu = min_t(u64, ca->sys_mss, (max_inflight + 1)>>1);
-		u32 new_cwnd = min_t(u32, max_t(u32, div_u64(max_inflight + mtu - 1, mtu), MIN_CWND), tp->snd_cwnd_clamp);
+		mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1)>>1);
+		u64 new_cwnd = min_t(u64, max_t(u64, div_u64(max_inflight + mtu - 1, mtu), MIN_CWND), tp->snd_cwnd_clamp);
 
-		tp->mss_cache = tcp_mtu_to_mss(mtu);
-		ca->frac_cwnd = (u64)new_cwnd << CWND_UNIT;
+		tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+		ca->frac_cwnd = new_cwnd << CWND_UNIT;
 		if (new_cwnd != tp->snd_cwnd) {
 			tp->snd_cwnd = new_cwnd;
 			prague_cwnd_changed(sk);
@@ -473,7 +473,7 @@ static void prague_update_alpha(struct sock *sk)
 		u64 acked_segs = tp->delivered - ca->old_delivered;
 
 		ecn_segs <<= PRAGUE_ALPHA_BITS;
-		ecn_segs = div_u64(ecn_segs, max(1U, acked_segs));
+		ecn_segs = div_u64(ecn_segs, max(1ULL, acked_segs));
 	}
 	alpha = alpha - (alpha >> PRAGUE_SHIFT_G) + ecn_segs;
 	ca->alpha_stamp = tp->tcp_mstamp;
@@ -523,7 +523,6 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 
 	if (prague_is_rtt_indep(sk))
 		return;
-
 	increase = acked * ca->ai_ack_increase;
 	new_cwnd = prague_frac_cwnd_to_snd_cwnd(sk);
 	if (likely(new_cwnd))
@@ -830,7 +829,7 @@ static bool prague_target_rtt_elapsed(struct sock *sk)
 				   prague_ca(sk)->alpha_stamp);
 }
 
-static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u32 rtt)
+static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u64 rtt)
 {
 	u64 increase;
 	u64 divisor;
@@ -852,7 +851,7 @@ static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u32 rtt)
 	return increase;
 }
 
-static u64 prague_scalable_ai_ack_increase(struct sock *sk, u32 rtt)
+static u64 prague_scalable_ai_ack_increase(struct sock *sk, u64 rtt)
 {
 	/* R0 ~= 16ms, R1 ~= 1.5ms */
 	const s64 R0 = USd82RTT((1 << 14) << 3), R1 = US2d8RTT(((1 << 10) + (1 << 9)) << 3);
@@ -871,7 +870,7 @@ static u64 prague_scalable_ai_ack_increase(struct sock *sk, u32 rtt)
 	return increase;
 }
 
-static u32 prague_dynamic_rtt_target(struct sock *sk)
+static u64 prague_dynamic_rtt_target(struct sock *sk)
 {
 	return prague_ca(sk)->rtt_target + USd82RTT(tcp_sk(sk)->srtt_us);
 }
