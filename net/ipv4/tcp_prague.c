@@ -285,7 +285,7 @@ static u64 prague_pacing_rate_to_Bytes_in_flight(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	u64 rtt_win;
-	u128 Bytes_in_flight;
+	u64 Bytes_in_flight;
 
 	rtt_win = prague_window_rtt(sk);
 	Bytes_in_flight = (ca->rate_Bps * rtt_win + (1<<22)) >> 23;
@@ -530,7 +530,7 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 	increase = acked * ca->ai_ack_increase;
 	new_cwnd = prague_frac_cwnd_to_snd_cwnd(sk);
 	if (likely(new_cwnd))
-		increase = div_u64(increase + (new_cwnd >> 1),
+		increase = div_u64(increase + (new_cwnd>> 1),
 				   new_cwnd);
 	ca->frac_cwnd += max_t(u64, acked, increase);
 
@@ -742,8 +742,6 @@ static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
 			info->prague.prague_ai_ack_increase =
 				READ_ONCE(ca->ai_ack_increase);
 			info->prague.prague_round = ca->round;
-			info->prague.prague_rate_Bps =
-				READ_ONCE(ca->rate_Bps);
 			info->prague.prague_frac_cwnd = 
 				READ_ONCE(ca->frac_cwnd);
 			info->prague.prague_enabled = 1;
@@ -849,8 +847,9 @@ static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u64 rtt)
 	 *
 	 * Overflows if e2e RTT is > 100ms, hence the cap
 	 */
-	increase = (u64)1 << CWND_UNIT;
-	divisor = 1;
+	increase = (u64)rtt << CWND_UNIT;
+	increase *= rtt;
+	divisor = target * target;
 	increase = div64_u64(increase + (divisor >> 1), divisor);
 	return increase;
 }
