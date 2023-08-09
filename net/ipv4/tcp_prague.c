@@ -92,7 +92,7 @@
 #define MIN_CWND		2U
 #define PRAGUE_ALPHA_BITS	24U
 #define PRAGUE_MAX_ALPHA	(1ULL << PRAGUE_ALPHA_BITS)
-#defin64CWND_UNIT		20U
+#define CWND_UNIT		20U
 #define ONE_CWND		(1ULL << CWND_UNIT)
 #define MINIMUM_RATE		12500		/* Minimum rate in Bytes per second */
 #define PRAGUE_SHIFT_G		4		/* EWMA gain g = 1/2^4 */
