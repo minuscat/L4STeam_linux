@@ -350,8 +350,8 @@ static void prague_update_pacing_rate(struct sock *sk)
 	//	}
 	//	rate = ca->rate_bytes;
 	//} else {
-		mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-		tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+		mtu = tcp_mss_to_mtu(sk, max_t(u32, ca->sys_mss, tp->mss_cache));
+		//tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
 		max_inflight = ca->frac_cwnd;
 		rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
 	//}
