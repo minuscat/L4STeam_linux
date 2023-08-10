@@ -276,21 +276,16 @@ static u64 prague_virtual_rtt(struct sock *sk)
 	return max_t(u64, prague_target_rtt(sk), US2RTT((u64)tcp_sk(sk)->srtt_us));
 }
 
-static u64 prague_window_rtt(struct sock *sk)
-{
-	return min_t(u64, prague_target_rtt(sk), US2RTT((u64)tcp_sk(sk)->srtt_us));
-}
-
 static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
-	u64 rtt_win;
+	u64 rtt;
 	u64 bytes_in_flight;
 
-	rtt_win = prague_window_rtt(sk);
-	bytes_in_flight = (ca->rate_bytes * rtt_win + (1<<22)) >> 23;
+	rtt = US2RTT((u64)tcp_sk(sk)->srtt_us);
+	bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
 	return bytes_in_flight;
-	//bytes_in_flight = ((u128)ca->rate_bytes * (u128)rtt_win + (1<<22)) >> 23;
+	//bytes_in_flight = ((u128)ca->rate_bytes * (u128)rtt + (1<<22)) >> 23;
 	//return (bytes_in_flight > UINT64_MAX) ? UINT64_MAX : (u64)bytes_in_flight;
 }
 
@@ -340,13 +335,15 @@ static void prague_update_pacing_rate(struct sock *sk)
 		max_inflight = prague_pacing_rate_to_bytes_in_flight(sk);
 		//mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1) >> 1);
 		mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
-		new_cwnd = min_t(u64, max_t(u64, new_cwnd, MIN_CWND), tp->snd_cwnd_clamp);
-
 		//tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
 		ca->frac_cwnd = new_cwnd << CWND_UNIT;
-		if (new_cwnd != tp->snd_cwnd) {
-			tp->snd_cwnd = new_cwnd;
+		if (tp->snd_cwnd > new_cwnd && tp->snd_cwnd > MIN_CWND) {
+			--tp->snd_cwnd;
+			tp->snd_ssthresh = tp->snd_cwnd;
+			prague_cwnd_changed(sk);
+		} else if (tp->snd_cwnd < new_cwnd && tp->snd_cwnd < tp->snd_cwnd_clamp) {
+			++tp->snd_cwnd;
 			prague_cwnd_changed(sk);
 		}
 		rate = ca->rate_bytes;
@@ -802,6 +799,9 @@ static void prague_init(struct sock *sk)
 	 */
 	if (tp->srtt_us)
 		prague_update_pacing_rate(sk);
+	else
+		ca->rate_bytes = MINIMUM_RATE;
+	ca->loss_rate_bytes = 0;
 
 	ca->alpha_stamp = tp->tcp_mstamp;
 	ca->upscaled_alpha = PRAGUE_MAX_ALPHA << PRAGUE_SHIFT_G;
@@ -818,8 +818,6 @@ static void prague_init(struct sock *sk)
 	LOG(sk, "RTT indep chosen: %d (after %u rounds), targetting %u usec",
 		ca->rtt_indep, ca->rtt_transition_delay, prague_target_rtt(sk));
 	ca->saw_ce = !!tp->delivered_ce;
-	ca->rate_bytes = div_u64(((u64)tp->snd_cwnd * (u64)tcp_mss_to_mtu(sk, tp->mss_cache)) << 23, prague_window_rtt(sk));
-	ca->loss_rate_bytes = 0;
 
 	/* reuse existing meaurement of SRTT as an intial starting point */
 	tp->g_srtt_shift = PRAGUE_MAX_SRTT_BITS;
