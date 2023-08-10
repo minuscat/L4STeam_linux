@@ -335,12 +335,27 @@ static void prague_update_pacing_rate(struct sock *sk)
 	/* Record the largest MSS in sys_mss */
 	ca->sys_mss = max_t(u32, ca->sys_mss, tp->mss_cache);
 
-	mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-	// Must also set tcp_ecn_option=0 and tcp_ecn_unsafe_cep=1
-	// to disable the option and safer heuristic...
-	max_inflight = ca->frac_cwnd;
+	/* Set max_inflight, MTU, and snd_cwnd  */
+	if (prague_is_rtt_indep(sk)) {
+		max_inflight = prague_pacing_rate_to_bytes_in_flight(sk);
+		mtu = min_t(u64, tcp_mss_to_mtu(sk, ca->sys_mss), (max_inflight + 1) >> 1);
+		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
+		//new_cwnd = min_t(u64, max_t(u64, new_cwnd, MIN_CWND), tp->snd_cwnd_clamp);
 
-	rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
+		//tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+		ca->frac_cwnd = new_cwnd << CWND_UNIT;
+		//if (new_cwnd != tp->snd_cwnd) {
+			tp->snd_cwnd = new_cwnd;
+			prague_cwnd_changed(sk);
+		//}
+		rate = ca->rate_bytes;
+	} else {
+		mtu = tcp_mss_to_mtu(sk, max_t(u32, ca->sys_mss, tp->mss_cache));
+		//tp->mss_cache = tcp_mtu_to_mss(sk, mtu);
+		max_inflight = ca->frac_cwnd;
+		rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
+	}
+
 	if (tp->snd_cwnd < tp->snd_ssthresh / 2)
 		rate <<= 1;
 	if (!prague_is_rtt_indep(sk)) {
