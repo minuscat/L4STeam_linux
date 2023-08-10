@@ -299,12 +299,20 @@ static void prague_ai_ack_increase(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	u64 increase;
+	u64 rtt;
 
 	if (!prague_rtt_scaling_ops(sk)->ai_ack_increase) {
 		increase = prague_unscaled_ai_ack_increase(sk);
 		goto exit;
 	}
-	increase = prague_unscaled_ai_ack_increase(sk);
+	rtt = US2RTT((u64)tcp_sk(sk)->srtt_us);
+	if (ca->round < ca->rtt_transition_delay ||
+	    !rtt || rtt > (MAX_SCALED_RTT << 3)) {
+		increase = prague_unscaled_ai_ack_increase(sk);
+		goto exit;
+	}
+
+	increase = prague_rtt_scaling_ops(sk)->ai_ack_increase(sk, rtt);
 exit:
 	WRITE_ONCE(ca->ai_ack_increase, increase);
 }
