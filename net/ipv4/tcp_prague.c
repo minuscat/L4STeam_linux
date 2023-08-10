@@ -283,10 +283,10 @@ static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
 	u64 bytes_in_flight;
 
 	rtt = US2RTT((u64)tcp_sk(sk)->srtt_us);
-	bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
-	return bytes_in_flight;
-	//bytes_in_flight = ((u128)ca->rate_bytes * (u128)rtt + (1<<22)) >> 23;
-	//return (bytes_in_flight > UINT64_MAX) ? UINT64_MAX : (u64)bytes_in_flight;
+	//bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
+	//return bytes_in_flight;
+	bytes_in_flight = ((u128)ca->rate_bytes * (u128)rtt + (1<<22)) >> 23;
+	return (bytes_in_flight > UINT64_MAX) ? UINT64_MAX : (u64)bytes_in_flight;
 }
 
 /* RTT independence will scale the classical 1/W per ACK increase. */
@@ -494,9 +494,9 @@ static void prague_update_alpha(struct sock *sk)
 
 	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
 	if (ecn_segs) {
-		//u128 decrease_u128 = ((u128)ca->rate_bytes*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
-		//decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
-		decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+		u128 decrease_u128 = ((u128)ca->rate_bytes*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+		decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
+		//decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
 	}
 	ca->rate_bytes = max_t(u64, ca->rate_bytes + increase - decrease, MINIMUM_RATE);
 
