@@ -330,7 +330,10 @@ static void prague_update_pacing_rate(struct sock *sk)
 	const struct tcp_sock *tp = tcp_sk(sk);
 	u64 max_inflight;
 	u64 rate, burst;
-	int mtu;
+	u64 mtu;
+
+	/* Record the largest MSS in sys_mss */
+	ca->sys_mss = max_t(u32, ca->sys_mss, tp->mss_cache);
 
 	mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
 	// Must also set tcp_ecn_option=0 and tcp_ecn_unsafe_cep=1
@@ -340,11 +343,12 @@ static void prague_update_pacing_rate(struct sock *sk)
 	rate = (u64)((u64)USEC_PER_SEC << 3) * mtu;
 	if (tp->snd_cwnd < tp->snd_ssthresh / 2)
 		rate <<= 1;
-	//if (likely(tp->srtt_us))
-	//	rate = div64_u64(rate, tp->srtt_us);
-	if (likely(RTT2US(prague_target_rtt(sk))))
-		rate = div64_u64(rate + RTT2US(prague_target_rtt(sk)) << 2, RTT2US(prague_target_rtt(sk)) << 3);
-	rate = (rate*max_inflight + (ONE_CWND >> 1)) >> CWND_UNIT;
+	if (!prague_is_rtt_indep(sk)) {
+		if (likely(tp->srtt_us))
+			rate = div64_u64(rate, tp->srtt_us);
+		rate = (rate*max_inflight + (ONE_CWND >> 1)) >> CWND_UNIT;
+		ca->rate_bytes = rate;
+	}
 	rate = min_t(u64, rate, sk->sk_max_pacing_rate);
 	/* TODO(otilmans) rewrite the tso_segs hook to bytes to avoid this
 	 * division. It will somehow need to be able to take hdr sizes into
