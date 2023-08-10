@@ -430,6 +430,8 @@ static void prague_update_alpha(struct sock *sk)
 	struct prague *ca = prague_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	u64 ecn_segs, alpha;
+	u64 increase;
+	u64 decrease = 0;
 
 	/* Do not update alpha before we have proof that there's an AQM on
 	 * the path.
@@ -463,6 +465,14 @@ static void prague_update_alpha(struct sock *sk)
 
 	WRITE_ONCE(ca->upscaled_alpha, alpha);
 	tp->alpha = alpha >> PRAGUE_SHIFT_G;
+
+	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
+	if (ecn_segs) {
+		//u128 decrease_u128 = ((u128)ca->rate_bytes*(u128)tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+		//decrease = (decrease_u128 > UINT64_MAX) ? UINT64_MAX : 0;
+		decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+	}
+	ca->rate_bytes = max_t(u64, ca->rate_bytes + increase - decrease, MINIMUM_RATE);
 
 skip:
 	prague_new_round(sk);
