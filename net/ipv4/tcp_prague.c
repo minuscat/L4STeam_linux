@@ -276,6 +276,30 @@ static u64 prague_virtual_rtt(struct sock *sk)
 	return max_t(u64, prague_target_rtt(sk), US2RTT((u64)tcp_sk(sk)->srtt_us));
 }
 
+static u64 mul_64_64_shift(u64 left, u64 right, u64 shift)
+{
+	u64 a0 = left & ((1ULL<<32)-1);
+	u64 a1 = left >> 32;
+	u64 b0 = right & ((1ULL<<32)-1);
+	u64 b1 = right >> 32;
+	u64 m0 = a0 * b0;
+	u64 m1 = a0 * b1;
+	u64 m2 = a1 * b0;
+	u64 m3 = a1 * b1;
+
+	m2 += (m0 >> 32);
+	m2 += m1;
+	/* Overflow */
+	if (m2 < m1)
+		m3 += (1ULL<<32);
+
+	u64 result_low = (m0 & ((1ULL<<32)-1)) | (m2 << 32);
+	u64 result_high = m3 + (m2 >> 32);
+	result_low = (result_low >> shift) + (result_high << (64-shift));
+	result_high = (result_high >> shift);
+	return (result_high) ? UINT64_MAX : result_low;
+}
+
 static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
@@ -283,7 +307,8 @@ static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
 	u64 bytes_in_flight;
 
 	rtt = US2RTT((u64)tcp_sk(sk)->srtt_us);
-	bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
+	bytes_in_flight = mul_64_64_shift(ca->rate_bytes, rtt, 23);
+	//bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
 	return bytes_in_flight;
 }
 
@@ -484,7 +509,8 @@ static void prague_update_alpha(struct sock *sk)
 
 	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
 	if (ecn_segs) {
-		decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
+		decrease = mul_64_64_shift(ca->rate_bytes, tp->alpha, PRAGUE_ALPHA_BITS + 1);
+		//decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
 	}
 	ca->rate_bytes = max_t(u64, ca->rate_bytes + increase - decrease, MINIMUM_RATE);
 
