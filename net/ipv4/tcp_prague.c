@@ -316,7 +316,7 @@ static void prague_ai_ack_increase(struct sock *sk)
 {
 	struct prague *ca = prague_ca(sk);
 	u64 increase;
-	u64 rtt;
+	u32 rtt;
 
 	if (!prague_rtt_scaling_ops(sk)->ai_ack_increase) {
 		increase = prague_unscaled_ai_ack_increase(sk);
@@ -487,10 +487,10 @@ static void prague_update_alpha(struct sock *sk)
 	 * We first compute F, the fraction of ecn segments.
 	 */
 	if (ecn_segs) {
-		u64 acked_segs = tp->delivered - ca->old_delivered;
+		u32 acked_segs = tp->delivered - ca->old_delivered;
 
 		ecn_segs <<= PRAGUE_ALPHA_BITS;
-		ecn_segs = div_u64(ecn_segs, max(1ULL, acked_segs));
+		ecn_segs = div_u64(ecn_segs, max(1U, acked_segs));
 	}
 	alpha = alpha - (alpha >> PRAGUE_SHIFT_G) + ecn_segs;
 	ca->alpha_stamp = tp->tcp_mstamp;
@@ -757,7 +757,7 @@ static size_t prague_get_info(struct sock *sk, u32 ext, int *attr,
 			info->prague.prague_round = ca->round;
 			info->prague.prague_rate_bytes =
 				READ_ONCE(ca->rate_bytes);
-			info->prague.prague_frac_cwnd = 
+			info->prague.prague_frac_cwnd =
 				READ_ONCE(ca->frac_cwnd);
 			info->prague.prague_enabled = 1;
 			info->prague.prague_rtt_indep = ca->rtt_indep;
