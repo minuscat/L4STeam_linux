@@ -296,8 +296,8 @@ static u64 mul_64_64_shift(u64 left, u64 right, u64 shift)
 	u64 result_low = (m0 & ((1ULL<<32)-1)) | (m2 << 32);
 	u64 result_high = m3 + (m2 >> 32);
 	result_low = (result_low >> shift) | (result_high << (64-shift));
-	result_high >>= shift;
-	return (result_high) ? 0xfffffffffffffffULL : result_low;
+	result_high = (result_high >> shift);
+	return (result_high) ? 0xffffffffffffffffULL : result_low;
 }
 
 static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
