@@ -509,9 +509,9 @@ static void prague_update_alpha(struct sock *sk)
 	tp->alpha = alpha >> PRAGUE_SHIFT_G;
 
 	increase = (div_u64((PRAGUE_MAX_ALPHA - tp->alpha)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
-	if (ecn_segs) {
+	//if (ecn_segs) {
 		decrease = mul_64_64_shift(ca->rate_bytes, tp->alpha, PRAGUE_ALPHA_BITS + 1);
-	}
+	//}
 	ca->rate_bytes = max_t(u64, ca->rate_bytes + increase - decrease, MINIMUM_RATE);
 
 skip:
