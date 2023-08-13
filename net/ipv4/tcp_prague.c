@@ -306,9 +306,17 @@ static u64 prague_pacing_rate_to_bytes_in_flight(struct sock *sk)
 	u64 bytes_in_flight;
 
 	rtt = US2RTT(tcp_sk(sk)->srtt_us);
-	bytes_in_flight = mul_64_64_shift(ca->rate_bytes, rtt, 23);
-	//bytes_in_flight = (ca->rate_bytes * rtt + (1<<22)) >> 23;
-	return bytes_in_flight;
+	return mul_64_64_shift(ca->rate_bytes, rtt, 23);
+}
+
+static u64 prague_pacing_rate_to_bytes_in_frac_cwnd(struct sock *sk)
+{
+        struct prague *ca = prague_ca(sk);
+	u64 rtt;
+	u64 bytes_in_cwnd;
+
+        rtt = US2RTT(tcp_sk(sk)->srtt_us);
+        return mul_64_64_shift(ca->rate_bytes, rtt, 23 - CWND_UNIT);
 }
 
 /* RTT independence will scale the classical 1/W per ACK increase. */
@@ -352,9 +360,10 @@ static void prague_update_pacing_rate(struct sock *sk)
 	/* Set max_inflight, MTU, and snd_cwnd  */
 	if (prague_is_rtt_indep(sk)) {
 		max_inflight = prague_pacing_rate_to_bytes_in_flight(sk);
+		u64 new_cwnd = prague_pacing_rate_to_bytes_in_frac_cwnd(sk);
 		mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-		u64 new_cwnd = div_u64(max_inflight + mtu - 1, mtu);
-		ca->frac_cwnd = new_cwnd << CWND_UNIT;
+		/* Now put in round-up */
+		ca->frac_cwnd = div_u64(new_cwnd + ((mtu << CWND_UNIT) - 1), (mtu << CWND_UNIT));
 		rate = ca->rate_bytes;
 	} else {
 		mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
@@ -499,10 +508,12 @@ static void prague_update_alpha(struct sock *sk)
 	WRITE_ONCE(ca->upscaled_alpha, alpha);
 	tp->alpha = alpha >> PRAGUE_SHIFT_G;
 
-	increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
+	if (tp->alpha >= ( PRAGUE_MAX_ALPHA >> 1))
+		increase = (div_u64((PRAGUE_MAX_ALPHA - tp->alpha)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
+	else
+		increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
 	if (ecn_segs) {
 		decrease = mul_64_64_shift(ca->rate_bytes, tp->alpha, PRAGUE_ALPHA_BITS + 1);
-		//decrease = (ca->rate_bytes*tp->alpha) >> (PRAGUE_ALPHA_BITS + 1);
 	}
 	ca->rate_bytes = max_t(u64, ca->rate_bytes + increase - decrease, MINIMUM_RATE);
 
