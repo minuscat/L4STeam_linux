@@ -316,8 +316,15 @@ static u64 prague_pacing_rate_to_bytes_in_frac_cwnd(struct sock *sk)
 	u64 mtu;
 
 	mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
-	rtt = US2RTT(tcp_sk(sk)->srtt_us);
+	rtt = US2RTT(tp->srtt_us);
 	return div_u64(mul_64_64_shift(ca->rate_bytes, rtt, 23 - CWND_UNIT), mtu);
+}
+
+static bool prague_fraction_target_rtt_elapsed(struct sock *sk, u32 shift)
+{
+        return (RTT2US(prague_target_rtt(sk)) >> (3 + shift)) <=
+                tcp_stamp_us_delta(tcp_sk(sk)->tcp_mstamp,
+                                   prague_ca(sk)->alpha_stamp);
 }
 
 /* RTT independence will scale the classical 1/W per ACK increase. */
@@ -868,13 +875,6 @@ static bool prague_target_rtt_elapsed(struct sock *sk)
 	return (RTT2US(prague_target_rtt(sk)) >> 3) <=
 		tcp_stamp_us_delta(tcp_sk(sk)->tcp_mstamp,
 				   prague_ca(sk)->alpha_stamp);
-}
-
-static bool prague_fraction_target_rtt_elapsed(struct sock *sk, u32 shift)
-{
-        return (RTT2US(prague_target_rtt(sk)) >> (3 + shift)) <=
-                tcp_stamp_us_delta(tcp_sk(sk)->tcp_mstamp,
-                                   prague_ca(sk)->alpha_stamp);
 }
 
 static u64 prague_rate_scaled_ai_ack_increase(struct sock *sk, u32 rtt)
