@@ -562,9 +562,11 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 			goto adjust;
 		else {
 			ca->ai_ack_stamp = tp->tcp_mstamp;
-			u64 ecn_segs = div_u64((ca->acc_acked - ca->acc_acked_ce) << PRAGUE_ALPHA_BITS, ca->acc_acked);
-			increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
-			ca->rate_bytes += increase;
+			if (likely(ca->acc_acked)) {
+				u64 ecn_segs = div_u64((ca->acc_acked_ce) << PRAGUE_ALPHA_BITS, ca->acc_acked);
+				increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
+				ca->rate_bytes += increase;
+			}
 			ca->frac_cwnd = prague_pacing_rate_to_bytes_in_frac_cwnd(sk);
 
 			ca->acc_acked = 0;
