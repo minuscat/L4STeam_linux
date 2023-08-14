@@ -539,8 +539,10 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 		acked -= rs->ece_delta;
 	}
 
-	ca->acc_acked += rs->acked_sacked;
-	ca->acc_acked_ce += rs->ece_delta;
+	if (prague_is_rtt_indep(sk)) {
+		ca->acc_acked += rs->acked_sacked;
+		ca->acc_acked_ce += rs->ece_delta;
+	}
 
 	if (acked <= 0 || ca->in_loss || !tcp_is_cwnd_limited(sk))
 		goto adjust;
@@ -563,6 +565,9 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 			increase = (div_u64((PRAGUE_MAX_ALPHA - ecn_segs)*tcp_mss_to_mtu(sk, tp->mss_cache), prague_virtual_rtt(sk)) + 1) >> 1;
 			ca->rate_bytes += increase;
 			ca->frac_cwnd = prague_pacing_rate_to_bytes_in_frac_cwnd(sk);
+
+			ca->acc_acked = 0;
+			ca->acc_acked_ce = 0;
 		}
 	} else {
 		increase = acked * ca->ai_ack_increase;
