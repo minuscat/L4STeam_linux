@@ -362,7 +362,8 @@ static void prague_update_pacing_rate(struct sock *sk)
 	if (prague_is_rtt_indep(sk)) {
 		if (prague_fraction_target_rtt_elapsed(sk, 1)) { // second half (5-percent more)
 			u64 pre_rate = ca->rate_bytes;
-			ca->rate_bytes = pre_rate - ((pre_rate >> 3) - (pre_rate >> 4) - (pre_rate >> 7) - (pre_rate >> 8) - (pre_rate >> 10));
+			//ca->rate_bytes = pre_rate - ((pre_rate >> 3) - (pre_rate >> 4) - (pre_rate >> 7) - (pre_rate >> 8) - (pre_rate >> 10));
+			ca->rate_bytes = pre_rate - ((pre_rate >> 6) - (pre_rate >> 8) - (pre_rate >> 9) + (pre_rate >>10) - (pre_rate >> 11));
 			max_inflight = prague_pacing_rate_to_bytes_in_flight(sk);
 			u64 new_cwnd = prague_pacing_rate_to_bytes_in_frac_cwnd(sk);
 			mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
@@ -371,7 +372,8 @@ static void prague_update_pacing_rate(struct sock *sk)
 			ca->rate_bytes = pre_rate;
 		} else { // first half (5-percent less)
 			u64 pre_rate = ca->rate_bytes;
-			ca->rate_bytes = pre_rate + ((pre_rate >> 3) - (pre_rate >> 4) - (pre_rate >> 7) - (pre_rate >> 8) - (pre_rate >> 10));
+			//ca->rate_bytes = pre_rate + ((pre_rate >> 3) - (pre_rate >> 4) - (pre_rate >> 7) - (pre_rate >> 8) - (pre_rate >> 10));
+			ca->rate_bytes = pre_rate + ((pre_rate >> 6) - (pre_rate >> 8) - (pre_rate >> 9) + (pre_rate >>10) - (pre_rate >> 11));
 			max_inflight = prague_pacing_rate_to_bytes_in_flight(sk);
 			u64 new_cwnd = prague_pacing_rate_to_bytes_in_frac_cwnd(sk);
 			mtu = tcp_mss_to_mtu(sk, tp->mss_cache);
