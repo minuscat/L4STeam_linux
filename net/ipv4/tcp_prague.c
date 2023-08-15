@@ -805,17 +805,22 @@ static void prague_init(struct sock *sk)
 	/* If we have an initial RTT estimate, ensure we have an initial pacing
 	 * rate to use if net.ipv4.tcp_pace_iw is set.
 	 */
-	if (tp->srtt_us)
-		prague_update_pacing_rate(sk);
-	else
-		ca->rate_bytes = MINIMUM_RATE;
-	ca->loss_rate_bytes = 0;
-
 	ca->alpha_stamp = tp->tcp_mstamp;
 	ca->upscaled_alpha = PRAGUE_MAX_ALPHA << PRAGUE_SHIFT_G;
 	ca->frac_cwnd = ((u64)tp->snd_cwnd << CWND_UNIT);
 	ca->loss_frac_cwnd = 0;
 	ca->max_tso_burst = 1;
+
+	if (tp->srtt_us) {
+		ca->rate_bytes = div_u64((((u64)USEC_PER_SEC << 3) * tcp_mss_to_mtu(sk, tp->mss_cache) , tp->srtt_us);
+		ca->rate_bytes = div_u64(ca->rate_bytes, tp->srtt_us);
+		ca->rate_bytes = max_t(u64, ca->rate_bytes*tp->snd_cwnd, MINIMUM_RATE);
+		prague_update_pacing_rate(sk);
+	} else {
+		ca->rate_bytes = MINIMUM_RATE;
+	}
+        ca->loss_rate_bytes = 0;
+
 	ca->round = 0;
 	ca->rtt_transition_delay = prague_rtt_transition;
 	ca->rtt_target = US2RTT(prague_rtt_target << 3);
