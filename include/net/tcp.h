@@ -1190,6 +1190,9 @@ struct tcp_congestion_ops {
 	/* pick target number of segments per TSO/GSO skb (optional): */
 	u32 (*tso_segs)(struct sock *sk, unsigned int mss_now);
 
+        /* pick target number of sening mss (optional): */
+        u32 (*send_mss)(struct sock *sk, unsigned int mss_now);
+
 	/* call when packets are delivered to update cwnd and pacing rate,
 	 * after all the ca_state processing. (optional)
 	 */
