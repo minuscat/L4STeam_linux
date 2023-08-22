@@ -447,6 +447,7 @@ void tcp_init_sock(struct sock *sk)
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd_clamp = ~0;
 	tp->mss_cache = TCP_MSS_DEFAULT;
+	tp->mss_cache_set_by_ca = false;
 
 	tp->reordering = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_reordering);
 	tcp_assign_congestion_control(sk);
@@ -940,10 +941,6 @@ int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 	int mss_now;
 
 	mss_now = tcp_current_mss(sk);
-
-	const struct tcp_congestion_ops *ca_ops = inet_csk(sk)->icsk_ca_ops;
-	mss_now = ca_ops->send_mss ? ca_ops->send_mss(sk, mss_now) : mss_now;
-
 	*size_goal = tcp_xmit_size_goal(sk, mss_now, !(flags & MSG_OOB));
 
 	return mss_now;
