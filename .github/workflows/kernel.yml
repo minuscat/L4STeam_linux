@@ -42,7 +42,9 @@ jobs:
                        --module CONFIG_IFB \
                        --module CONFIG_VETH \
                        --module CONFIG_BRIDGE \
-                       --module CONFIG_INET_DIAG
+                       --module CONFIG_INET_DIAG \
+                       --module CONFIG_WIRELESS_EXT \
+                       --module CONFIG_CFG80211_WEXT
         make olddefconfig
     - name: make-deb
       run: make -j$(nproc) bindeb-pkg \
