@@ -23,6 +23,7 @@ jobs:
                        --set-str CONFIG_SYSTEM_REVOCATION_KEYS "" \
                        --set-val CONFIG_FRAME_WARN 0 \
                        --module CONFIG_TCP_CONG_PRAGUE \
+                       --module CONFIG_TCP_CONG_NEWPRAGUE \
                        --module CONFIG_TCP_CONG_BBR \
                        --module CONFIG_TCP_CONG_BBR2 \
                        --module CONFIG_TCP_CONG_DCTCP \
