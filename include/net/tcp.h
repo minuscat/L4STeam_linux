@@ -188,12 +188,12 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOPT_MD5SIG		19	/* MD5 Signature (RFC2385) */
 #define TCPOPT_MPTCP		30	/* Multipath TCP (RFC6824) */
 #define TCPOPT_FASTOPEN		34	/* Fast open (RFC7413) */
+#define TCPOPT_ACCECN0		172	/* 0xAC: Accurate ECN Order 0 */
+#define TCPOPT_ACCECN1		174	/* 0xAE: Accurate ECN Order 1 */
 #define TCPOPT_EXP		254	/* Experimental */
 /* Magic number to be after the option value for sharing TCP
  * experimental options. See draft-ietf-tcpm-experimental-options-00.txt
  */
-#define TCPOPT_ACCECN0_MAGIC	0xACC0
-#define TCPOPT_ACCECN1_MAGIC	0xACC1
 #define TCPOPT_FASTOPEN_MAGIC	0xF989
 #define TCPOPT_SMC_MAGIC	0xE2D4C3D9
 
@@ -207,9 +207,9 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOLEN_TIMESTAMP      10
 #define TCPOLEN_MD5SIG         18
 #define TCPOLEN_FASTOPEN_BASE  2
+#define TCPOLEN_ACCECN_BASE    2
 #define TCPOLEN_EXP_FASTOPEN_BASE  4
 #define TCPOLEN_EXP_SMC_BASE   6
-#define TCPOLEN_EXP_ACCECN_BASE 4
 
 /* But this is what stacks really send out. */
 #define TCPOLEN_TSTAMP_ALIGNED		12
@@ -221,13 +221,13 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCPOLEN_MD5SIG_ALIGNED		20
 #define TCPOLEN_MSS_ALIGNED		4
 #define TCPOLEN_EXP_SMC_BASE_ALIGNED	8
-#define TCPOLEN_ACCECN_PERCOUNTER	3
+#define TCPOLEN_ACCECN_PERFIELD	3
 
 /* Maximum number of byte counters in AccECN option + size */
-#define TCP_ACCECN_NUMCOUNTERS		3
-#define TCP_ACCECN_MAXSIZE		(TCPOLEN_EXP_ACCECN_BASE + \
-					 TCPOLEN_ACCECN_PERCOUNTER * \
-					 TCP_ACCECN_NUMCOUNTERS)
+#define TCP_ACCECN_NUMFIELDS		3
+#define TCP_ACCECN_MAXSIZE		(TCPOLEN_ACCECN_BASE + \
+					 TCPOLEN_ACCECN_PERFIELD * \
+					 TCP_ACCECN_NUMFIELDS)
 #define TCP_ACCECN_BEACON_FREQ_SHIFT	2 /* Send option at least 2^2 times per RTT */
 #define TCP_ACCECN_SAFETY_SHIFT	1	/* SAFETY_FACTOR in accecn draft */
 
@@ -894,7 +894,7 @@ static inline u64 tcp_skb_timestamp_us(const struct sk_buff *skb)
  * See draft-ietf-tcpm-accurate-ecn for the latest values.
  */
 #define TCP_ACCECN_CEP_INIT_OFFSET 5
-#define TCP_ACCECN_E1B_INIT_OFFSET 0
+#define TCP_ACCECN_E1B_INIT_OFFSET 1
 #define TCP_ACCECN_E0B_INIT_OFFSET 1
 #define TCP_ACCECN_CEB_INIT_OFFSET 0
 
