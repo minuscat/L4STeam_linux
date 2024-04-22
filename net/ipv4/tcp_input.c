@@ -4898,8 +4898,11 @@ static void tcp_rcv_spurious_retrans(struct sock *sk, const struct sk_buff *skb)
 	 * DSACK state and change the txhash to re-route speculatively.
 	 */
 	if (TCP_SKB_CB(skb)->seq == tcp_sk(sk)->duplicate_sack[0].start_seq &&
-	    sk_rethink_txhash(sk))
+	    sk_rethink_txhash(sk)) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPDUPLICATEDATAREHASH);
+		if (tcp_ecn_mode_accecn(tcp_sk(sk)))
+			tcp_sk(sk)->accecn_no_options = 1;
+	}
 }
 
 static void tcp_send_dupack(struct sock *sk, const struct sk_buff *skb)
