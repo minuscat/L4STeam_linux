@@ -386,6 +386,9 @@ tcp_ecn_make_synack(struct sock *sk, const struct request_sock *req, struct tcph
 		else if (inet_rsk(req)->ecn_ok)
 			th->ece = 1;
 	} else if (tcp_rsk(req)->accecn_ok) {
+		th->ae  = 0;
+		th->cwr = 0;
+		th->ece = 0;
 		tcp_sk(sk)->ecn_fail = 1;
 	}
 }
