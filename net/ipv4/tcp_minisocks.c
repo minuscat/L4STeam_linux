@@ -694,9 +694,14 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		 */
 		if (!tcp_oow_rate_limited(sock_net(sk), skb,
 					  LINUX_MIB_TCPACKSKIPPEDSYNRECV,
-					  &tcp_rsk(req)->last_oow_ack_time) &&
-
-		    !inet_rtx_syn_ack(sk, req)) {
+					  &tcp_rsk(req)->last_oow_ack_time)) {
+		    if (tcp_rsk(req)->accecn_ok) {
+			tcp_rsk(req)->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
+			if (tcp_accecn_ace(tcp_hdr(skb)) == 0x0) {
+				tcp_sk(sk)->ecn_fail = 1;
+			}
+		    }
+		    if (!inet_rtx_syn_ack(sk, req)) {
 			unsigned long expires = jiffies;
 
 			expires += min(TCP_TIMEOUT_INIT << req->num_timeout,
@@ -705,6 +710,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 				mod_timer_pending(&req->rsk_timer, expires);
 			else
 				req->rsk_timer.expires = expires;
+		    }
 		}
 		return NULL;
 	}
