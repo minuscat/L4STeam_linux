@@ -929,8 +929,8 @@ static bool tcp_accecn_option_beacon_check(const struct sock *sk)
 	if (!sock_net(sk)->ipv4.sysctl_tcp_ecn_option_beacon)
 		return false;
 
-	return tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) >=
-	       (tp->srtt_us >> (3 + TCP_ACCECN_BEACON_FREQ_SHIFT));
+	return tcp_stamp_us_delta(tp->tcp_mstamp, tp->accecn_opt_tstamp) * sock_net(sk)->ipv4.sysctl_tcp_ecn_option_beacon >=
+	       (tp->srtt_us >> 3);
 }
 
 /* Compute TCP options for SYN packets. This is not the final
