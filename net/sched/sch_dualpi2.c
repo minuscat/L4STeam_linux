@@ -5,6 +5,7 @@
  * Author: Olga Albisser <olga@albisser.org>
  * Author: Henrik Steen <henrist@henrist.net>
  * Author: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
+ * Author: Chia-Yu Chang <chia-yu.chang@nokia-bell-labs.com>
  *
  * DualPI Improved with a Square (dualpi2):
  *   Supports scalable congestion controls (e.g., DCTCP)
@@ -18,6 +19,7 @@
  *   scalable TCP."  in proc. ACM CoNEXT'16, 2016.
  */
 
+#include <linux/moduleparam.h>
 #include <linux/errno.h>
 #include <linux/hrtimer.h>
 #include <linux/kernel.h>
@@ -29,6 +31,7 @@
 #include <net/inet_ecn.h>
 #include <net/pkt_sched.h>
 #include <net/pkt_cls.h>
+#include <net/sch_testbed.h>
 
 /* 32b enable to support flows with windows up to ~8.6 * 1e9 packets
  * i.e., twice the maximal snd_cwnd.
@@ -53,6 +56,14 @@
 #define ALPHA_BETA_SCALING (ALPHA_BETA_SHIFT - ALPHA_BETA_GRANULARITY)
 /* We express the weights (wc, wl) in %, i.e., wc + wl = 100 */
 #define MAX_WC 100
+
+static u32 dualpi2_testbed __read_mostly = 0;
+MODULE_PARM_DESC(dualpi2_testbed, "DualPI2 testbed 0 = none, 1 = testbed mode");
+module_param(dualpi2_testbed, int, 0644);
+
+static u32 dualpi2_qdelay_u __read_mostly = 5; /* 2^5 = 32us */
+MODULE_PARM_DESC(dualpi2_qdelay_u, "DualPI2 queue delay as a base-2 exponent");
+module_param(dualpi2_qdelay_u, int, 0644);
 
 struct dualpi2_sched_data {
 	struct Qdisc *l_queue;	/* The L4S LL queue */
@@ -101,6 +112,9 @@ struct dualpi2_sched_data {
 	u32	maxq;		/* maximum queue size */
 	u32	ecn_mark;	/* packets marked with ECN */
 	u32	step_marks;	/* ECN marks due to the step AQM */
+
+	/* Testbed information */
+	struct testbed_metrics testbed;
 
 	struct { /* Deferred drop statistics */
 		u32 cnt;	/* Packets dropped */
@@ -217,8 +231,11 @@ static bool dualpi2_classic_marking(struct dualpi2_sched_data *q,
 				    bool overload)
 {
 	if (dualpi2_roll(prob) && dualpi2_roll(prob)) {
-		if (overload || dualpi2_skb_cb(skb)->ect == INET_ECN_NOT_ECT)
+		if (overload || dualpi2_skb_cb(skb)->ect == INET_ECN_NOT_ECT) {
+			if (dualpi2_testbed)
+	                        testbed_inc_drop_count(&q->testbed, dualpi2_skb_cb(skb)->ect);
 			return true;
+		}
 		dualpi2_mark(q, skb);
 	}
 	return false;
@@ -244,14 +261,19 @@ static bool dualpi2_scalable_marking(struct dualpi2_sched_data *q,
 		if (!q->drop_overload ||
 		    !(dualpi2_roll(prob) && dualpi2_roll(prob)))
 			goto mark;
+		if (dualpi2_testbed)
+			testbed_inc_drop_count(&q->testbed, dualpi2_skb_cb(skb)->ect);
 		return true;
 	}
 
 	/* We can safely cut the upper 32b as overload==false*/
 	if (dualpi2_roll(local_l_prob)) {
 		/* Non-ECT packets could have classified as L4S by filters. */
-		if (dualpi2_skb_cb(skb)->ect == INET_ECN_NOT_ECT)
+		if (dualpi2_skb_cb(skb)->ect == INET_ECN_NOT_ECT) {
+			if (dualpi2_testbed)
+				testbed_inc_drop_count(&q->testbed, dualpi2_skb_cb(skb)->ect);
 			return true;
+		}
 mark:
 		dualpi2_mark(q, skb);
 	}
@@ -376,10 +398,14 @@ static int dualpi2_enqueue_skb(struct sk_buff *skb, struct Qdisc *sch,
 		qdisc_qstats_overlimit(sch);
 		if (skb_in_l_queue(skb))
 			qdisc_qstats_overlimit(q->l_queue);
+		if (dualpi2_testbed)
+                        testbed_inc_drop_count(&q->testbed, dualpi2_skb_cb(skb)->ect);
 		return qdisc_drop(skb, sch, to_free);
 	}
 
 	if (q->drop_early && must_drop(sch, q, skb)) {
+		if (dualpi2_testbed)
+			testbed_inc_drop_count(&q->testbed, dualpi2_skb_cb(skb)->ect);
 		qdisc_drop(skb, sch, to_free);
 		return NET_XMIT_SUCCESS | __NET_XMIT_BYPASS;
 	}
@@ -563,6 +589,11 @@ pick_packet:
 
 	q->c_protection.credit += credit_change;
 	qdisc_bstats_update(sch, skb);
+	if (dualpi2_testbed) {
+		// queue delay is converted from ns (>> 15) to units of 32us
+		testbed_add_metrics(skb, &q->testbed, 
+				    skb_sojourn_time(skb, ktime_get_ns()) >> (10 + dualpi2_qdelay_u));
+	}
 
 exit:
 	/* We cannot call qdisc_tree_reduce_backlog() if our qlen is 0,
@@ -807,6 +838,10 @@ static void dualpi2_reset_default(struct dualpi2_sched_data *q)
 	q->drop_overload = true;	/* Preserve latency by dropping */
 	q->drop_early = false;		/* PI2 drops on dequeue */
 	q->split_gso = true;
+
+        if (dualpi2_testbed) {
+		testbed_metrics_init(&q->testbed);
+	}
 }
 
 static int dualpi2_init(struct Qdisc *sch, struct nlattr *opt,
@@ -1026,5 +1061,6 @@ MODULE_AUTHOR("Koen De Schepper");
 MODULE_AUTHOR("Olga Albisser");
 MODULE_AUTHOR("Henrik Steen");
 MODULE_AUTHOR("Olivier Tilmans");
+MODULE_AUTHOR("Chia-Yu Chang");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0");
+MODULE_VERSION("1.1");
