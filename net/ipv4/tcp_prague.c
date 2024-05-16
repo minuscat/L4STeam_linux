@@ -554,7 +554,7 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 	struct tcp_sock *tp = tcp_sk(sk);
 	u64 increase;
 	s64 acked;
-	u32 new_cwnd;
+	u64 new_cwnd;
 	u64 divisor;
 	u64 mtu_used;
 
@@ -589,9 +589,9 @@ static void prague_update_cwnd(struct sock *sk, const struct rate_sample *rs)
 		ca->frac_cwnd = max_t(u64, ca->frac_cwnd + acked, prague_pacing_rate_to_frac_cwnd(sk));
 	} else {
 		increase = acked * ca->ai_ack_increase;
-		new_cwnd = tp->snd_cwnd;
+		new_cwnd = ca->frac_cwnd;
 		if (likely(new_cwnd))
-			increase = div_u64(increase + (new_cwnd >> 1), new_cwnd);
+			increase = div64_u64((increase << CWND_UNIT) + (new_cwnd >> 1), new_cwnd);
 		ca->frac_cwnd += max_t(u64, acked, increase);
 	}
 
