@@ -99,7 +99,7 @@ struct dualpi2_sched_data {
 	/* Statistics */
 	u64	c_head_ts;	/* Enqueue timestamp of the classic Q's head */
 	u64	l_head_ts;	/* Enqueue timestamp of the L Q's head */
-	u64	last_qdelay;	/* Q delay val at the last ability update */
+	u64	last_qdelay;	/* Q delay val at the last probability update */
 	u32	packets_in_c;	/* Number of packets enqueued in C queue */
 	u32	packets_in_l;	/* Number of packets enqueued in L queue */
 	u32	maxq;		/* maximum queue size */
@@ -148,7 +148,7 @@ static u64 head_enqueue_time(struct Qdisc *q)
 
 static u32 dualpi2_scale_alpha_beta(u32 param)
 {
-	u64 tmp  = ((u64)param * MAX_ >> ALPHA_BETA_SCALING);
+	u64 tmp  = ((u64)param * MAX_PROB >> ALPHA_BETA_SCALING);
 
 	do_div(tmp, NSEC_PER_SEC);
 	return tmp;
@@ -158,7 +158,7 @@ static u32 dualpi2_unscale_alpha_beta(u32 param)
 {
 	u64 tmp = ((u64)param * NSEC_PER_SEC << ALPHA_BETA_SCALING);
 
-	do_div(tmp, MAX_);
+	do_div(tmp, MAX_PROB);
 	return tmp;
 }
 
@@ -205,7 +205,7 @@ static void dualpi2_calculate_c_protection(struct Qdisc *sch,
 	dualpi2_reset_c_protection(q);
 }
 
-static bool dualpi2_roll(u32 )
+static bool dualpi2_roll(u32 prob)
 {
 	return prandom_u32() <= prob;
 }
