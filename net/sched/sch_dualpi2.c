@@ -8,9 +8,13 @@
  *
  * DualPI Improved with a Square (dualpi2):
  * - Supports congestion controls that comply with the Prague requirements
- *   in RFC9331 (e.g., Prague; note: DCTCP not anymore unless in DC context)
- * - Supports coupled dual-queue with PI2
- * - Supports L4S ECN identifier
+ *   in RFC9331 (e.g. TCP-Prague)
+ * - Supports coupled dual-queue with PI2 as defined in RFC9332
+ * - Supports ECN L4S-identifier (IP.ECN==0b*1)
+ *
+ * note: DCTCP is not Prague compliant, so DCTCP & DualPI2 can only be
+ *   used in DC context; BBRv3 (overwrites bbr) stopped Prague support,
+ *   you should use TCP-Prague instead for low latency apps
  *
  * References:
  * - RFC9332: https://datatracker.ietf.org/doc/html/rfc9332
