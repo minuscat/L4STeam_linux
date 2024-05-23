@@ -7,14 +7,14 @@
  * Author: Olivier Tilmans <olivier.tilmans@nokia-bell-labs.com>
  *
  * DualPI Improved with a Square (dualpi2):
- *   Supports scalable congestion controls (e.g., DCTCP)
- *   Supports coupled dual-queue with PI2
- *   Supports L4S ECN identifier
+ * - Supports congestion controls that comply with the Prague requirements
+ *   in RFC9331 (e.g., Prague; note: DCTCP not anymore unless in DC context)
+ * - Supports coupled dual-queue with PI2
+ * - Supports L4S ECN identifier
  *
  * References:
- *   draft-ietf-tsvwg-aqm-dualq-coupled:
- *     http://tools.ietf.org/html/draft-ietf-tsvwg-aqm-dualq-coupled-08
- *   De Schepper, Koen, et al. "PI 2: A linearized AQM for both classic and
+ * - RFC9332: https://datatracker.ietf.org/doc/html/rfc9332
+ * - De Schepper, Koen, et al. "PI 2: A linearized AQM for both classic and
  *   scalable TCP."  in proc. ACM CoNEXT'16, 2016.
  */
 
@@ -67,7 +67,7 @@ struct dualpi2_sched_data {
 	struct { /* PI2 parameters */
 		u64	target;	/* Target delay in nanoseconds */
 		u32	tupdate;/* Timer frequency in nanoseconds */
-		u32	prob;	/* Base PI2 probability */
+		u32	prob;	/* Base PI probability */
 		u32	alpha;	/* Gain factor for the integral rate response */
 		u32	beta;	/* Gain factor for the proportional response */
 		struct hrtimer timer; /* prob update timer */
@@ -95,7 +95,7 @@ struct dualpi2_sched_data {
 	/* Statistics */
 	u64	c_head_ts;	/* Enqueue timestamp of the classic Q's head */
 	u64	l_head_ts;	/* Enqueue timestamp of the L Q's head */
-	u64	last_qdelay;	/* Q delay val at the last probability update */
+	u64	last_qdelay;	/* Q delay val at the last ability update */
 	u32	packets_in_c;	/* Number of packets enqueued in C queue */
 	u32	packets_in_l;	/* Number of packets enqueued in L queue */
 	u32	maxq;		/* maximum queue size */
@@ -144,7 +144,7 @@ static u64 head_enqueue_time(struct Qdisc *q)
 
 static u32 dualpi2_scale_alpha_beta(u32 param)
 {
-	u64 tmp  = ((u64)param * MAX_PROB >> ALPHA_BETA_SCALING);
+	u64 tmp  = ((u64)param * MAX_ >> ALPHA_BETA_SCALING);
 
 	do_div(tmp, NSEC_PER_SEC);
 	return tmp;
@@ -154,7 +154,7 @@ static u32 dualpi2_unscale_alpha_beta(u32 param)
 {
 	u64 tmp = ((u64)param * NSEC_PER_SEC << ALPHA_BETA_SCALING);
 
-	do_div(tmp, MAX_PROB);
+	do_div(tmp, MAX_);
 	return tmp;
 }
 
@@ -201,7 +201,7 @@ static void dualpi2_calculate_c_protection(struct Qdisc *sch,
 	dualpi2_reset_c_protection(q);
 }
 
-static bool dualpi2_roll(u32 prob)
+static bool dualpi2_roll(u32 )
 {
 	return prandom_u32() <= prob;
 }
