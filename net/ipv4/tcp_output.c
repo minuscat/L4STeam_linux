@@ -389,7 +389,7 @@ tcp_ecn_make_synack(struct sock *sk, const struct request_sock *req, struct tcph
 		th->ae  = 0;
 		th->cwr = 0;
 		th->ece = 0;
-		tcp_sk(sk)->ecn_fail = 1;
+		tcp_accecn_fail_mode_set(tcp_sk(sk), TCP_ACCECN_ACE_FAIL_SEND);
 	}
 }
 
@@ -422,7 +422,7 @@ static void tcp_ecn_send(struct sock *sk, struct sk_buff *skb,
 	if (!tcp_ecn_mode_any(tp))
 		return;
 
-	if (!tp->ecn_fail)
+	if (!tcp_accecn_ace_fail_send(tp) && !tcp_accecn_ace_fail_recv(tp))
 		/* The CCA could change the ECT codepoint on the fly, reset it*/
 		__INET_ECN_xmit(sk, tp->ecn_flags & TCP_ECN_ECT_1);
 	if (tcp_ecn_mode_accecn(tp)) {
@@ -1174,7 +1174,8 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 
 	if (tcp_ecn_mode_accecn(tp) &&
 	    sock_net(sk)->ipv4.sysctl_tcp_ecn_option &&
-	    (tp->saw_accecn_opt && tp->saw_accecn_opt != TCP_ACCECN_OPT_FAIL && !tp->accecn_no_options)) {
+	    tp->saw_accecn_opt &&
+	    !tcp_accecn_opt_fail_send(tp)) {
 		if (sock_net(sk)->ipv4.sysctl_tcp_ecn_option >= 2 ||
 		    tp->accecn_opt_demand ||
 		    tcp_accecn_option_beacon_check(sk)) {

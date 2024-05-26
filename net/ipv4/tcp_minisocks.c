@@ -405,8 +405,10 @@ void tcp_accecn_third_ack(struct sock *sk, const struct sk_buff *skb,
 
 	switch (ace) {
 	case 0x0:
-		tp->ecn_fail = 1;
-		tp->accecn_no_respond = 1;
+		if (!TCP_SKB_CB(skb)->sacked) {
+			tcp_accecn_fail_mode_set(tp, TCP_ACCECN_ACE_FAIL_RECV);
+			tcp_accecn_fail_mode_set(tp, TCP_ACCECN_OPT_FAIL_RECV);
+		}
 		break;
 	case 0x7:
 	case 0x5:
@@ -507,12 +509,12 @@ u8 tcp_accecn_option_init(const struct sk_buff *skb, u8 opt_offset)
 	if (optlen < TCPOLEN_ACCECN_PERFIELD)
 		return TCP_ACCECN_OPT_EMPTY_SEEN;
 	if (get_unaligned_be24(ptr) == 0)
-		return TCP_ACCECN_OPT_FAIL;
+		return TCP_ACCECN_OPT_FAIL_SEEN;
 	if (optlen < TCPOLEN_ACCECN_PERFIELD * 3)
 		return TCP_ACCECN_OPT_COUNTER_SEEN;
 	ptr += TCPOLEN_ACCECN_PERFIELD * 2;
 	if (get_unaligned_be24(ptr) == 0)
-		return TCP_ACCECN_OPT_FAIL;
+		return TCP_ACCECN_OPT_FAIL_SEEN;
 
 	return TCP_ACCECN_OPT_COUNTER_SEEN;
 }
@@ -699,7 +701,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		    if (tcp_rsk(req)->accecn_ok) {
 			tcp_rsk(req)->syn_ect_rcv = TCP_SKB_CB(skb)->ip_dsfield & INET_ECN_MASK;
 			if (tcp_accecn_ace(tcp_hdr(skb)) == 0x0) {
-				tcp_sk(sk)->ecn_fail = 1;
+				tcp_accecn_fail_mode_set(tcp_sk(sk), TCP_ACCECN_ACE_FAIL_RECV);
 			}
 		    }
 		    if (!inet_rtx_syn_ack(sk, req)) {
@@ -827,8 +829,11 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		return NULL;
 
 	if (tcp_rsk(req)->accecn_ok && tmp_opt.accecn &&
-	    tcp_rsk(req)->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN)
+	    tcp_rsk(req)->saw_accecn_opt < TCP_ACCECN_OPT_COUNTER_SEEN) {
 		tcp_rsk(req)->saw_accecn_opt = tcp_accecn_option_init(skb, tmp_opt.accecn);
+		if (tcp_rsk(req)->saw_accecn_opt == TCP_ACCECN_OPT_FAIL_SEEN)
+			tcp_rsk(req)->accecn_fail_mode |= TCP_ACCECN_OPT_FAIL_RECV;
+	}
 
 	/* For Fast Open no more processing is needed (sk is the
 	 * child socket).
